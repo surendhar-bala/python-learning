@@ -1,13 +1,16 @@
 import uuid
 
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import Depends, FastAPI, UploadFile, File, HTTPException
 from celery.result import AsyncResult
+
+from app.rate_limit import rate_limit
 
 from .database import Base, engine
 from . import models
 from .jobs import process_excel
 from .worker import celery_app
 from .storage import upload_file_to_r2
+from .redis import redis_client
 
 app = FastAPI()
 
@@ -16,14 +19,23 @@ app = FastAPI()
 Base.metadata.create_all(bind=engine)
 
 
-@app.get("/")
+@app.get("/test")
 def home():
-
+    redis_client.set("test", "hello")
+    print(redis_client.get("test"))
     return {
         "message": "FastAPI Background Job Demo"
     }
 
+@app.get(
+    "/api/data",
+    dependencies=[Depends(rate_limit)]
+)
+def get_data():
 
+    return {
+        "message": "Success"
+    }
 @app.post("/upload-excel")
 async def upload_excel(
     file: UploadFile = File(...)
